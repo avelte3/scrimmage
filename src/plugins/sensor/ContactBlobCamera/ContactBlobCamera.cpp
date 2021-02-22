@@ -62,6 +62,7 @@
 
 namespace sc = scrimmage;
 namespace sp = scrimmage_proto;
+namespace sc_msgs = scrimmage_msgs;
 
 REGISTER_PLUGIN(scrimmage::Sensor, scrimmage::sensor::ContactBlobCamera, ContactBlobCamera_plugin)
 
@@ -192,6 +193,9 @@ void ContactBlobCamera::init(std::map<std::string, std::string> &params) {
 
     // Publish the resulting bounding boxes
     pub_ = advertise("LocalNetwork", "ContactBlobCamera");
+
+    // publish gimbal attitude and mode
+    pub_gimbal_telem_ = advertise("LocalNetwork", "GimbalTelem");
 
     // Initialize frustum shapes
     frustum_shapes_.resize(8);
@@ -382,11 +386,7 @@ void ContactBlobCamera::add_false_positives(
 bool ContactBlobCamera::step() {
     if ((time_->t() - last_frame_t_) < 1.0 / fps_) return true;
 
-    sc::State sensor_frame;
-    sensor_frame.quat() =
-            static_cast<sc::Quaternion>(parent_->state_truth()->quat() *
-                                        this->transform()->quat());
-    sensor_frame.pos() = this->transform()->pos() + parent_->state_truth()->pos();
+    sc::State sensor_frame = get_sensor_frame();
 
     if (show_frustum_) {
         draw_frustum(frustum_shapes_, sensor_frame.quat().roll(), sensor_frame.quat().pitch(), sensor_frame.quat().yaw());
@@ -462,8 +462,21 @@ bool ContactBlobCamera::step() {
         detections_file_ << std::endl;
     }
 
+    auto gimbal_msg = std::make_shared<sc::Message<sc_msgs::gimbal::GimbalTelem>>();
+    fill_gimbal_telem(gimbal_msg);
+
     pub_->publish(msg);
+    pub_gimbal_telem_->publish(gimbal_msg);
     return true;
+}
+
+sc::State ContactBlobCamera::get_sensor_frame() {
+    sc::State sensor_frame;
+    sensor_frame.quat() =
+            static_cast<sc::Quaternion>(parent_->state_truth()->quat() *
+                                        this->transform()->quat());
+    sensor_frame.pos() = this->transform()->pos() + parent_->state_truth()->pos();
+    return sensor_frame;
 }
 
 Eigen::Vector2d ContactBlobCamera::project_rel_3d_to_2d(Eigen::Vector3d rel_pos) {
@@ -551,6 +564,19 @@ void ContactBlobCamera::set_plugin_params(std::map<std::string, double> params) 
         snprintf(buf, sizeof(buf), "%s: %f", kv.first.c_str(), kv.second);
         parameters_file_ << buf << std::endl;
     }
+}
+
+void ContactBlobCamera::fill_gimbal_telem(
+    std::shared_ptr<scrimmage::Message<sc_msgs::gimbal::GimbalTelem>> &msg) {
+    msg->data.set_time(time_->t());
+    msg->data.set_mode(gimbal_mode_);
+    msg->data.set_pan(this->transform()->quat().yaw());
+    msg->data.set_tilt(this->transform()->quat().pitch());
+
+    sc::State sensor_frame = get_sensor_frame();
+    msg->data.set_roll(sensor_frame.quat().roll());
+    msg->data.set_pitch(sensor_frame.quat().pitch());
+    msg->data.set_yaw(sensor_frame.quat().yaw());
 }
 
 } // namespace sensor

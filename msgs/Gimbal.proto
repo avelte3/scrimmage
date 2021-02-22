@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.gtri.scrimmage";
+
+package scrimmage_msgs.gimbal;
+
+message GimbalTelem {
+    double time = 1;
+    Mode mode = 2;
+    
+    float pan = 3;
+    float tilt = 4;
+
+    float roll = 5;
+    float pitch = 6;
+    float yaw = 7;
+
+}
+
+enum Mode {
+        STOW = 0;
+        MANUAL = 1;
+        TRACK = 2;
+        GEOPOINT = 3;
+}
+
+message Geopoint {
+    double latitude = 1;
+    double longitude = 2;
+    double altitude = 3;
+}
+
+message ControlPanTilt {
+    float pan = 1;
+    float tilt = 2;
+}
+
+message DoTrack {
+    // empty
+}
+
+message DoStow {
+    // empty
+}

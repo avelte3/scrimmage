@@ -37,6 +37,7 @@
 
 #include <scrimmage/sensor/Sensor.h>
 #include <scrimmage/entity/Contact.h>
+#include <scrimmage/msgs/Gimbal.pb.h>
 
 #include <random>
 #include <map>
@@ -82,6 +83,9 @@ class ContactBlobCamera : public scrimmage::Sensor {
     void set_plugin_params(std::map<std::string, double> params);
     void draw_frustum(const std::vector<scrimmage_proto::ShapePtr>& frustum, double x_rot, double y_rot, double z_rot);
 
+    scrimmage::State get_sensor_frame();
+    void fill_gimbal_telem(std::shared_ptr<scrimmage::Message<scrimmage_msgs::gimbal::GimbalTelem>> &msg);
+
     // plugin parameters
     std::map<std::string, double> plugin_params_;
     int camera_id_ = 0;
@@ -104,6 +108,9 @@ class ContactBlobCamera : public scrimmage::Sensor {
     double last_frame_t_;
 
     PublisherPtr pub_;
+    PublisherPtr pub_gimbal_telem_;
+
+    scrimmage_msgs::gimbal::Mode gimbal_mode_ = scrimmage_msgs::gimbal::Mode::STOW;
 
     bool ignore_real_entities_ = false;
     bool show_image_ = false;
