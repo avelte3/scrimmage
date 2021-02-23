@@ -184,12 +184,25 @@ void ContactBlobCamera::init(std::map<std::string, std::string> &params) {
      * Allow for updating camera's roll, pitch, and yaw in real-time.
      */
     auto rpy_cb = [&](sc::MessagePtr<std::vector<double>> msg) {
+        gimbal_mode_ = sc_msgs::gimbal::Mode::MANUAL;
         double roll = sc::Angles::deg2rad(msg->data[0]);
         double pitch = sc::Angles::deg2rad(msg->data[1]);
         double yaw = sc::Angles::deg2rad(msg->data[2]);
         this->transform()->quat().set(roll, pitch, yaw);
     };
     subscribe<std::vector<double>>("LocalNetwork", "BlobPluginRPY", rpy_cb);
+
+    /**
+     * Set mode Geopoint.
+     */
+    auto geopoint_cb = [&](sc::MessagePtr<sc_msgs::gimbal::Geopoint> msg) {
+        gimbal_mode_ = sc_msgs::gimbal::Mode::GEOPOINT;
+        point_lat_ = msg->data.latitude();
+        point_lon_ = msg->data.longitude();
+        point_alt_ = msg->data.altitude();
+        do_geopoint();
+    };
+    subscribe<sc_msgs::gimbal::Geopoint>("LocalNetwork", "BlobGeopoint", geopoint_cb);
 
     // Publish the resulting bounding boxes
     pub_ = advertise("LocalNetwork", "ContactBlobCamera");
@@ -383,8 +396,39 @@ void ContactBlobCamera::add_false_positives(
     }
 }
 
+void ContactBlobCamera::do_gimbal_control() {
+    switch (gimbal_mode_) {
+        case sc_msgs::gimbal::Mode::STOW:
+            this->transform()->quat().set(0, 0, 0);
+            break;
+        case sc_msgs::gimbal::Mode::MANUAL:
+            break;
+        case sc_msgs::gimbal::Mode::TRACK:
+            break; // TODO: track detections
+        case sc_msgs::gimbal::Mode::GEOPOINT:
+            do_geopoint();
+            break;
+        default:
+            std::cerr << "ContactBlobCamera::do_gimbal_control: ERROR: invalid mode" << std::endl;
+    }
+    return;
+}
+
+void ContactBlobCamera::do_geopoint() {
+    Eigen::Vector3d xyz;
+    parent_->projection()->Forward(point_lat_, point_lon_, point_alt_, xyz[0], xyz[1], xyz[2]);
+
+    Eigen::Vector3d rel_pos = parent_->state_truth()->rel_pos_local_frame(xyz);
+    double az = atan2(rel_pos(1), rel_pos(0));
+    double norm_xy = sqrt(pow(rel_pos(0), 2) + pow(rel_pos(1), 2));
+    double el = -atan2(rel_pos(2), norm_xy);
+    this->transform()->quat().set(0, el, az);
+}
+
 bool ContactBlobCamera::step() {
     if ((time_->t() - last_frame_t_) < 1.0 / fps_) return true;
+
+    do_gimbal_control();
 
     sc::State sensor_frame = get_sensor_frame();
 

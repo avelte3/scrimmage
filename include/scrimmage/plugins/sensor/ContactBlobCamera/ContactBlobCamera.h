@@ -66,6 +66,9 @@ class ContactBlobCamera : public scrimmage::Sensor {
     std::vector<std::shared_ptr<std::normal_distribution<double>>> orient_noise_;
     std::vector<std::shared_ptr<std::normal_distribution<double>>> size_noise_;
 
+    void do_gimbal_control();
+    void do_geopoint();
+
     void contacts_to_bounding_boxes(
         const scrimmage::State &sensor_frame,
         scrimmage::ContactMap &contacts,
@@ -110,7 +113,11 @@ class ContactBlobCamera : public scrimmage::Sensor {
     PublisherPtr pub_;
     PublisherPtr pub_gimbal_telem_;
 
+    //Gimbal parameters
     scrimmage_msgs::gimbal::Mode gimbal_mode_ = scrimmage_msgs::gimbal::Mode::STOW;
+    double point_lat_;
+    double point_lon_;
+    double point_alt_;
 
     bool ignore_real_entities_ = false;
     bool show_image_ = false;
